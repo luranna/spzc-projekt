@@ -24,19 +24,18 @@ tii_src_training_set=base_path+'ttl-infogathering-1.csv'
 tii_src_test_set=base_path+'ttl-infogathering-2.csv'
 tii_benign_data = base_path+'tii-benign-data.csv'
 
-def prepare_wireshark_dataset1(df):
+def prepare_wireshark_dataset_benign(df):
+    columns = ['src_ip', 'dst_ip', 'ip_version', 'protocol', 'ip_flags', 'src_port', 'dst_port','tcp_flags', 'src_bytes', 'dst_bytes']
+    new_df=df.loc[:,columns]
+    df_final=normal_traffic_classification(new_df)
+    return df_final
+
+def prepare_wireshark_dataset_scan(df):
     columns = ['src_ip', 'dst_ip', 'ip_version', 'protocol', 'ip_flags', 'src_port', 'dst_port','tcp_flags', 'src_bytes', 'dst_bytes']
     new_df=df.loc[:,columns]
     df_final=scan_data_classification(new_df)
     return df_final
 
-def prepare_wireshark_dataset(df,df2):
-    columns = ['src_ip', 'dst_ip', 'ip_version', 'protocol', 'ip_flags', 'src_port', 'dst_port','tcp_flags', 'src_bytes', 'dst_bytes']
-    new_df=df.loc[:,columns]
-    new_df2=df2.loc[:,columns]
-    df_final=new_df._append(new_df2, ignore_index=True)
-    df_final=scan_data_classification(df_final)
-    return df_final
 
 def prepare_kddcup_dataset(df):
     olumns = (['duration','protocol','service','flag','src_bytes','dst_bytes','land','wrong_fragment'
@@ -69,9 +68,10 @@ def add_anomaly_classification(df):
 def scan_data_classification(df):
     df['class_num'] = 1
     return df
+
 #add classification of normal network flow from Wireshark (0)
 def normal_traffic_classification(df):
-    df['class_num'] = 10
+    df['class_num'] = 0
     return df
 
 def preprocess_data(df_train, df_test):
@@ -114,6 +114,7 @@ def train_and_test_model(train_set, test_set):
     print("Model accuracy score:")
     print(accuracy_score(multi_predictions,test_y_data))
 
+# function for joining kdd and wireshark as they have different columns
 def join_datasets(df,df2):
     df_final=pd.DataFrame()
     df_final=df_final._append(df, ignore_index=True)
@@ -129,14 +130,18 @@ def prepare_data():
     test_df = pd.read_csv(kddcup_test_set)
     test_df2=pd.read_csv(tii_src_test_set)
 
+    #training data
     kdd_df= prepare_kddcup_dataset(df)
-    wireshark_df=prepare_wireshark_dataset(df2,df3)
+    wireshark_df=prepare_wireshark_dataset_scan(df2)
+    wireshark_df2=prepare_wireshark_dataset_scan(df3)
+    wireshark_df=wireshark_df._append(wireshark_df2, ignore_index=True)
     final_train_set=join_datasets(kdd_df,wireshark_df)
-    benign_traffic=prepare_wireshark_dataset1(df4)
+    benign_traffic=prepare_wireshark_dataset_benign(df4)
     final_train_set=join_datasets(final_train_set,benign_traffic)
 
+    #test data
     kdd_test_set=prepare_kddcup_dataset(test_df)
-    wireshark_test_set=prepare_wireshark_dataset1(test_df2)
+    wireshark_test_set=prepare_wireshark_dataset_scan(test_df2)
     final_test_set=join_datasets(kdd_test_set,wireshark_test_set)
 
     return final_train_set, final_test_set
