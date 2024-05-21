@@ -15,93 +15,69 @@ warnings.filterwarnings('ignore')
 
 base_path="/home/ubuntu/Desktop/spzc/data/"
 
-file_path_training_set = base_path+'KDDTrain+.txt'
-file_path_training_set2 = base_path+'Train_data.csv'
+kddcup_training_set = base_path+'KDDTrain+.txt'
 file_path_training_set_scan = base_path+'scan_data.csv'
 
-file_path_test = base_path+'KDDTest+.txt'
-file_path_test2 = base_path+'Test_data.csv'
+kddcup_test_set = base_path+'KDDTest+.txt'
 
+tii_src_training_set=base_path+'ttl-infogathering-1.csv'
+tii_src_test_set=base_path+'ttl-infogathering-2.csv'
+tii_benign_data = base_path+'tii-benign-data.csv'
 
-def prepare_datasets(df, df2):
-    columns = (['duration'
-    ,'protocol_type'
-    ,'service'
-    ,'flag'
-    ,'src_bytes'
-    ,'dst_bytes'
-    ,'land'
-    ,'wrong_fragment'
-    ,'urgent'
-    ,'hot'
-    ,'num_failed_logins'
-    ,'logged_in'
-    ,'num_compromised'
-    ,'root_shell'
-    ,'su_attempted'
-    ,'num_root'
-    ,'num_file_creations'
-    ,'num_shells'
-    ,'num_access_files'
-    ,'num_outbound_cmds'
-    ,'is_host_login'
-    ,'is_guest_login'
-    ,'count'
-    ,'srv_count'
-    ,'serror_rate'
-    ,'srv_serror_rate'
-    ,'rerror_rate'
-    ,'srv_rerror_rate'
-    ,'same_srv_rate'
-    ,'diff_srv_rate'
-    ,'srv_diff_host_rate'
-    ,'dst_host_count'
-    ,'dst_host_srv_count'
-    ,'dst_host_same_srv_rate'
-    ,'dst_host_diff_srv_rate'
-    ,'dst_host_same_src_port_rate'
-    ,'dst_host_srv_diff_host_rate'
-    ,'dst_host_serror_rate'
-    ,'dst_host_srv_serror_rate'
-    ,'dst_host_rerror_rate'
-    ,'dst_host_srv_rerror_rate'
-    ,'attack'
-    ,'level'])
+def prepare_wireshark_dataset1(df):
+    columns = ['src_ip', 'dst_ip', 'ip_version', 'protocol', 'ip_flags', 'src_port', 'dst_port','tcp_flags', 'src_bytes', 'dst_bytes']
+    new_df=df.loc[:,columns]
+    df_final=scan_data_classification(new_df)
+    return df_final
 
-    df.columns = columns
-    df = df.iloc[:, :-1]
+def prepare_wireshark_dataset(df,df2):
+    columns = ['src_ip', 'dst_ip', 'ip_version', 'protocol', 'ip_flags', 'src_port', 'dst_port','tcp_flags', 'src_bytes', 'dst_bytes']
+    new_df=df.loc[:,columns]
+    new_df2=df2.loc[:,columns]
+    df_final=new_df._append(new_df2, ignore_index=True)
+    df_final=scan_data_classification(df_final)
+    return df_final
 
-    is_attack = df.attack.map(lambda a: "normal" if a == 'normal' else "anomaly")
+def prepare_kddcup_dataset(df):
+    olumns = (['duration','protocol','service','flag','src_bytes','dst_bytes','land','wrong_fragment'
+    ,'urgent','hot','num_failed_logins','logged_in','num_compromised','root_shell','su_attempted','num_root','num_file_creations','num_shells'
+    ,'num_access_files','num_outbound_cmds','is_host_login','is_guest_login','count','srv_count','serror_rate'
+    ,'srv_serror_rate','rerror_rate','srv_rerror_rate','same_srv_rate','diff_srv_rate','srv_diff_host_rate'
+    ,'dst_host_count','dst_host_srv_count','dst_host_same_srv_rate','dst_host_diff_srv_rate','dst_host_same_src_port_rate'
+    ,'dst_host_srv_diff_host_rate','dst_host_serror_rate','dst_host_srv_serror_rate','dst_host_rerror_rate','dst_host_srv_rerror_rate'
+    ,'attack', 'level'])
+    normal_flow_and_probe_attacks = ['normal','ipsweep','mscan','nmap','portsweep','saint','satan']
+    drop_columns=['land','wrong_fragment','urgent','hot','num_failed_logins','logged_in','num_compromised','root_shell','su_attempted','num_root','num_file_creations','num_shells'
+    ,'num_access_files','num_outbound_cmds','is_host_login','is_guest_login','count','srv_count','serror_rate'
+    ,'srv_serror_rate','rerror_rate','srv_rerror_rate','same_srv_rate','diff_srv_rate','srv_diff_host_rate'
+    ,'dst_host_count','dst_host_srv_count','dst_host_same_srv_rate','dst_host_diff_srv_rate','dst_host_same_src_port_rate'
+    ,'dst_host_srv_diff_host_rate','dst_host_serror_rate','dst_host_srv_serror_rate','dst_host_rerror_rate','dst_host_srv_rerror_rate','attack','level']
 
-    df = df.iloc[:, :-2]
+    df.columns = olumns
 
-    df['class'] = is_attack
-
-    df_final = df._append(df2, ignore_index=True)
-    df_final.head()
-    return df
+    df_final = df.loc[df["attack"].isin(normal_flow_and_probe_attacks)]
+    df_final= add_anomaly_classification(df_final)
+    df_final=df_final.drop(columns=drop_columns)
+    return df_final
 
 def add_anomaly_classification(df):
     is_attack = df.attack.map(lambda a: 0 if a == 'normal' else 1)
     df['class_num'] = is_attack
     return df
 
-#dane ze skanowania zarejestrowane przez program wireshark mają inną strukturę niż te z datasetów, plus wszystkie zarejestrowane pakiety są powiązane ze skanami - stąd wszędzie trzeba dać klasyfikację 1
-def scan_data_prepraration(scan_df):
-    scan_df['class_num'] = 1
-    return scan_df.head()
-
-def join_dataset_and_scan_data(df, scan_df):
-    #joining the same columns from both df that will be later used for model training
-    df_new =df['protocol_type', 'flag', 'src_bytes', 'dst_bytes','class_num']
-    df_scan_new=scan_df['protocol_type', 'flag', 'src_bytes', 'dst_bytes','class_num']
-    df_final = df_new._append(df_scan_new, ignore_index=True)
-    return df_final
-
+#add classification of scan network flow from Wireshark (1)
+def scan_data_classification(df):
+    df['class_num'] = 1
+    return df
+#add classification of normal network flow from Wireshark (0)
+def normal_traffic_classification(df):
+    df['class_num'] = 10
+    return df
 
 def preprocess_data(df_train, df_test):
-    features_to_encode = ['protocol_type', 'flag', 'class']
-    numeric_features = ['src_bytes', 'dst_bytes']
+    features_to_encode = ['src_ip', 'dst_ip','protocol', 'flag','ip_flags','tcp_flags','class_num']
+    numeric_features = ['src_bytes', 'dst_bytes','src_port',
+       'dst_port']
     # One-hot encoding of categorical features
 
     features_encoded = pd.get_dummies(df_train[features_to_encode], drop_first=True)
@@ -120,14 +96,16 @@ def preprocess_data(df_train, df_test):
     train_set = features_encoded.join(df_train[numeric_features])
     test_set = test_final.join(df_test[numeric_features])
     
+    train_set=train_set.fillna(0)
+    test_set=test_set.fillna(0)
     return train_set, test_set
 
 def train_and_test_model(train_set, test_set):
-    train_y_data = train_set.class_normal.values # wartości klasyfikacji - zbiór treningowy
-    train_set = train_set.drop(["class_normal"], axis=1)  # dataframe z wyodrębnionymi cechami do badania - zbiór treningowy
+    train_y_data = train_set.class_num.values # wartości klasyfikacji - zbiór treningowy
+    train_set = train_set.drop(["class_num"], axis=1)  # dataframe z wyodrębnionymi cechami do badania - zbiór treningowy
 
-    test_y_data = test_set.class_normal.values  # wartości klasyfikacji - zbiór testowy
-    test_set = test_set.drop(["class_normal"], axis=1) # dataframe z wyodrębnionymi cechami do badani - zbiór testowy
+    test_y_data = test_set.class_num.values  # wartości klasyfikacji - zbiór testowy
+    test_set = test_set.drop(["class_num"], axis=1) # dataframe z wyodrębnionymi cechami do badani - zbiór testowy
 
     model = LogisticRegression(max_iter=500)
     model.fit(train_set, train_y_data)
@@ -136,23 +114,38 @@ def train_and_test_model(train_set, test_set):
     print("Model accuracy score:")
     print(accuracy_score(multi_predictions,test_y_data))
 
+def join_datasets(df,df2):
+    df_final=pd.DataFrame()
+    df_final=df_final._append(df, ignore_index=True)
+    df_final=df_final._append(df2, ignore_index=True)
+    return df_final
+
+
+def prepare_data():
+    df = pd.read_csv(kddcup_training_set)
+    df2 = pd.read_csv(tii_src_training_set)
+    df3= pd.read_csv(file_path_training_set_scan)
+    df4=pd.read_csv(tii_benign_data)
+    test_df = pd.read_csv(kddcup_test_set)
+    test_df2=pd.read_csv(tii_src_test_set)
+
+    kdd_df= prepare_kddcup_dataset(df)
+    wireshark_df=prepare_wireshark_dataset(df2,df3)
+    final_train_set=join_datasets(kdd_df,wireshark_df)
+    benign_traffic=prepare_wireshark_dataset1(df4)
+    final_train_set=join_datasets(final_train_set,benign_traffic)
+
+    kdd_test_set=prepare_kddcup_dataset(test_df)
+    wireshark_test_set=prepare_wireshark_dataset1(test_df2)
+    final_test_set=join_datasets(kdd_test_set,wireshark_test_set)
+
+    return final_train_set, final_test_set
+
 def main():
-    #data preparation
-    df = pd.read_csv(file_path_training_set)
-    df2 = pd.read_csv(file_path_training_set2)
-    test_df = pd.read_csv(file_path_test)
-    test_df2 = pd.read_csv(file_path_test2)
-    
-    train_datasets_combined = prepare_datasets(df, df2)
-    test_datasets_combined = prepare_datasets(test_df, test_df2)
-
-    scan_df = pd.read_csv(file_path_training_set_scan)
-    #final_train_data = join_dataset_and_scan_data(train_datasets_combined, scan_df)
-
-    final_train_set, final_test_set = preprocess_data(train_datasets_combined, test_datasets_combined)
-    
+    final_train_set, final_test_set=prepare_data()
+    preprocessed_final_train_set, preprocessed_final_test_set=preprocess_data(final_train_set, final_test_set)
     #training and testing of the model
-    train_and_test_model(final_train_set, final_test_set)
+    train_and_test_model(preprocessed_final_train_set, preprocessed_final_test_set)
     
 
 if __name__ == "__main__":
