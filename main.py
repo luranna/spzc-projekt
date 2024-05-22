@@ -38,7 +38,7 @@ def prepare_wireshark_dataset_scan(df):
 
 
 def prepare_kddcup_dataset(df):
-    olumns = (['duration','protocol','service','flag','src_bytes','dst_bytes','land','wrong_fragment'
+    columns = (['duration','protocol','service','tcp_flags','src_bytes','dst_bytes','land','wrong_fragment'
     ,'urgent','hot','num_failed_logins','logged_in','num_compromised','root_shell','su_attempted','num_root','num_file_creations','num_shells'
     ,'num_access_files','num_outbound_cmds','is_host_login','is_guest_login','count','srv_count','serror_rate'
     ,'srv_serror_rate','rerror_rate','srv_rerror_rate','same_srv_rate','diff_srv_rate','srv_diff_host_rate'
@@ -52,7 +52,7 @@ def prepare_kddcup_dataset(df):
     ,'dst_host_count','dst_host_srv_count','dst_host_same_srv_rate','dst_host_diff_srv_rate','dst_host_same_src_port_rate'
     ,'dst_host_srv_diff_host_rate','dst_host_serror_rate','dst_host_srv_serror_rate','dst_host_rerror_rate','dst_host_srv_rerror_rate','attack','level']
 
-    df.columns = olumns
+    df.columns = columns
 
     df_final = df.loc[df["attack"].isin(normal_flow_and_probe_attacks)]
     df_final= add_anomaly_classification(df_final)
@@ -75,9 +75,8 @@ def normal_traffic_classification(df):
     return df
 
 def preprocess_data(df_train, df_test):
-    features_to_encode = ['src_ip', 'dst_ip','protocol', 'flag','ip_flags','tcp_flags','class_num']
-    numeric_features = ['src_bytes', 'dst_bytes','src_port',
-       'dst_port']
+    features_to_encode = ['src_ip', 'dst_ip','protocol', 'ip_flags','tcp_flags','class_num']
+    numeric_features = ['src_bytes', 'dst_bytes','src_port', 'dst_port']
     # One-hot encoding of categorical features
 
     features_encoded = pd.get_dummies(df_train[features_to_encode], drop_first=True)
@@ -121,7 +120,6 @@ def join_datasets(df,df2):
     df_final=df_final._append(df2, ignore_index=True)
     return df_final
 
-
 def prepare_data():
     df = pd.read_csv(kddcup_training_set)
     df2 = pd.read_csv(tii_src_training_set)
@@ -149,7 +147,6 @@ def prepare_data():
 def main():
     final_train_set, final_test_set=prepare_data()
     preprocessed_final_train_set, preprocessed_final_test_set=preprocess_data(final_train_set, final_test_set)
-    #training and testing of the model
     train_and_test_model(preprocessed_final_train_set, preprocessed_final_test_set)
     
 
